@@ -20,13 +20,10 @@ const app = express();
 
 const cookieParser = require('cookie-parser');
 
-// Middleware
-app.use(express.json());
-app.use(cookieParser());
-
-// CORS Configuration for Vercel serverless
 // CORS Configuration
 const allowedOrigins = [
+    'https://brixxspace.com',
+    'https://www.brixxspace.com',
     'https://brixxspace72.web.app',
     'https://brixxspace72.firebaseapp.com',
     'http://localhost:3000',
@@ -36,21 +33,37 @@ const allowedOrigins = [
     'http://localhost:8082'
 ];
 
-app.use(cors({
+const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        
+        const isAllowed = 
+            allowedOrigins.includes(origin) ||
+            /^https:\/\/([a-z0-9-]+\.)*brixxspace\.com$/.test(origin) ||
+            /^https:\/\/([a-z0-9-]+\.)*web\.app$/.test(origin) ||
+            /^https:\/\/([a-z0-9-]+\.)*firebaseapp\.com$/.test(origin) ||
+            /^https:\/\/([a-z0-9-]+\.)*vercel\.app$/.test(origin);
+
+        if (isAllowed) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(null, false);
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    optionsSuccessStatus: 200,
     maxAge: 86400 // 24 hours
-}));
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
 
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
