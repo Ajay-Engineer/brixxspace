@@ -8,14 +8,6 @@ const connectDB = require('./config/db');
 // Load env vars
 dotenv.config();
 
-// Database connection is handled in startServer for local dev
-// For Vercel/Production, we need to initiate connection
-if (process.env.NODE_ENV === 'production') {
-    connectDB().catch(err => {
-        console.error('Failed to connect to MongoDB:', err.message);
-    });
-}
-
 const app = express();
 
 const cookieParser = require('cookie-parser');
@@ -97,30 +89,35 @@ app.get('/', (req, res) => {
 
 const PORT = parseInt(process.env.PORT) || 5001;
 
-// For local development
-if (process.env.NODE_ENV !== 'production') {
-    const startServer = async (port) => {
-        try {
-            await connectDB();
-            const server = app.listen(port, '0.0.0.0', () => {
-                console.log(`Server running on port ${port}`);
-            });
+// Start server for Render / Local development / Standard hosting
+const startServer = async (port) => {
+    try {
+        await connectDB();
+        const server = app.listen(port, '0.0.0.0', () => {
+            console.log(`Server running on port ${port}`);
+        });
 
-            server.on('error', (err) => {
-                if (err.code === 'EADDRINUSE') {
-                    console.log(`Port ${port} is in use, trying ${Number(port) + 1}...`);
-                    startServer(Number(port) + 1);
-                } else {
-                    console.error('Server error:', err);
-                    process.exit(1);
-                }
-            });
-        } catch (error) {
-            console.error('Failed to start server:', error);
-            process.exit(1);
-        }
-    };
+        server.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                console.log(`Port ${port} is in use, trying ${Number(port) + 1}...`);
+                startServer(Number(port) + 1);
+            } else {
+                console.error('Server error:', err);
+                process.exit(1);
+            }
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+};
 
+// Check if running inside Vercel serverless functions vs Render/Local server
+if (process.env.VERCEL) {
+    connectDB().catch(err => {
+        console.error('Failed to connect to MongoDB:', err.message);
+    });
+} else {
     startServer(PORT);
 }
 
