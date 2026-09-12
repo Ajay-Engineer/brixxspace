@@ -56,7 +56,11 @@ const sendOtp = expressAsyncHandler(async (req, res) => {
         await sendEmail({
             email,
             subject: 'Your Verification Code - BRIXXSPACE',
-            message
+            title: 'Verify Your Email Address',
+            otp,
+            content: 'Thank you for connecting with BRIXXSPACE. Please use the verification code below to complete your verification request.',
+            message,
+            footerNote: 'If you did not request this verification code, please disregard this email or contact support.'
         });
 
         res.status(200).json({

@@ -1,23 +1,35 @@
 const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
+const { generateEmailTemplate } = require('./emailTemplate');
 
 const sendEmail = async (options) => {
     // 1) Create a transporter
     let transporter;
 
-    if (process.env.EMAIL_HOST && process.env.EMAIL_USER) {
+    const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+    const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+    const pass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASS;
+    const port = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587);
+    const secure = process.env.SMTP_SECURE === 'true' || process.env.EMAIL_SECURE === 'true' || port === 465;
+
+    if (host && user) {
         // Use SMTP
         transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: process.env.EMAIL_PORT,
-            secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+            host,
+            port,
+            secure,
             auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
+                user,
+                pass
+            },
+            tls: {
+                rejectUnauthorized: false
             }
         });
     } else {
         // Dev: Log to console if no SMTP config
-        console.log('WARNING: No EMAIL_HOST or EMAIL_USER in .env. Using mock sender.');
+        console.log('WARNING: No SMTP_HOST/EMAIL_HOST or SMTP_USER/EMAIL_USER in .env. Using mock sender.');
         transporter = {
             sendMail: async (mailOptions) => {
                 console.log('-------------------------------------------');
@@ -28,20 +40,56 @@ const sendEmail = async (options) => {
                 console.log('-------------------------------------------');
                 return true;
             }
+        };
+    }
+
+    // 2) Resolve company logo attachment
+    const attachments = [];
+    const logoPaths = [
+        path.join(__dirname, '../assets/brixxspace-logo.png'),
+        path.join(__dirname, '../../src/assets/brixxspace-logo.png')
+    ];
+
+    for (const logoPath of logoPaths) {
+        if (fs.existsSync(logoPath)) {
+            attachments.push({
+                filename: 'brixxspace-logo.png',
+                path: logoPath,
+                cid: 'brixxlogo'
+            });
+            break;
         }
     }
 
-    // 2) Define the email options
+    // 3) Generate HTML content if not explicitly provided
+    let htmlContent = options.html;
+    if (!htmlContent) {
+        htmlContent = generateEmailTemplate({
+            title: options.title || options.subject,
+            name: options.name || '',
+            content: options.message || options.content || '',
+            otpCode: options.otp || options.otpCode || '',
+            quote: options.quote,
+            quoteAuthor: options.quoteAuthor,
+            ctaText: options.ctaText || '',
+            ctaUrl: options.ctaUrl || '',
+            footerNote: options.footerNote || ''
+        });
+    }
+
+    // 4) Define the email options
+    const fromAddress = process.env.EMAIL_FROM || process.env.SMTP_FROM || (user ? `BRIXXSPACE Support <${user}>` : 'BRIXXSPACE Support <support@brixxspace.com>');
     const mailOptions = {
-        from: process.env.EMAIL_FROM || 'BRIXXSPACE Support <support@brixxspace.com>',
+        from: fromAddress,
         to: options.email,
         subject: options.subject,
         text: options.message,
-        // html: options.html
+        html: htmlContent,
+        attachments: attachments.length > 0 ? attachments : undefined
     };
 
-    // 3) Actually send the email
-    await transporter.sendMail(mailOptions);
+    // 5) Actually send the email
+    return await transporter.sendMail(mailOptions);
 };
 
 module.exports = sendEmail;

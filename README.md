@@ -17,9 +17,7 @@ Brixx Space connects clients with top-tier construction consultation, project ad
 - Tailwind CSS
 - Framer Motion
 
-## Development
-To run the project locally:
-```bash
-npm install
-npm run dev
-```
+
+## Documentation
+For complete architectural, API, database schema, and deployment documentation, see [PROJECT_DOCUMENTATION.md](file:///e:/pinnacle-build-cms/PROJECT_DOCUMENTATION.md).
+
