@@ -60,7 +60,16 @@ app.use(cookieParser());
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(morgan('dev'));
+// Database connection middleware for Serverless / Express
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        console.error('Database connection error on request:', error.message);
+        res.status(500).json({ message: 'Database connection error' });
+    }
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
