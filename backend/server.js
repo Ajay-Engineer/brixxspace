@@ -63,7 +63,9 @@ app.use(helmet({
 // Database connection middleware for Serverless / Express
 app.use(async (req, res, next) => {
     try {
-        await connectDB();
+        if (process.env.NODE_ENV !== 'test') {
+            await connectDB();
+        }
         next();
     } catch (error) {
         console.error('Database connection error on request:', error.message);
@@ -121,11 +123,13 @@ const startServer = async (port) => {
     }
 };
 
-// Check if running inside Vercel serverless functions vs Render/Local server
-if (process.env.VERCEL) {
-    connectDB().catch(err => {
-        console.error('Failed to connect to MongoDB:', err.message);
-    });
+// Check if running inside Vercel serverless functions vs Render/Local server vs Test runner
+if (process.env.VERCEL || process.env.NODE_ENV === 'test') {
+    if (process.env.VERCEL) {
+        connectDB().catch(err => {
+            console.error('Failed to connect to MongoDB:', err.message);
+        });
+    }
 } else {
     startServer(PORT);
 }

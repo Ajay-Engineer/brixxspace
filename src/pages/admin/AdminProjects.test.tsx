@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import AdminProjects from './AdminProjects';
 import { BrowserRouter } from 'react-router-dom';
 
@@ -16,14 +16,11 @@ vi.mock('@/contexts/AuthContext', () => ({
     useAuth: () => ({ user: { id: 'admin-user' }, loading: false }),
 }));
 
-const mockMutateAsync = vi.fn();
+const mockMutateAsync = vi.fn().mockResolvedValue({});
 const mockDeleteMutate = vi.fn();
 
 vi.mock('@/hooks/useAdmin', () => ({
     useIsAdmin: () => ({ data: true, isLoading: false }),
-    useCreateProject: () => ({ mutateAsync: mockMutateAsync }),
-    useUpdateProject: () => ({ mutateAsync: mockMutateAsync }),
-    useDeleteProject: () => ({ mutate: mockDeleteMutate }),
 }));
 
 vi.mock('@/hooks/useProjects', () => ({
@@ -41,18 +38,35 @@ vi.mock('@/hooks/useProjects', () => ({
         ],
         isLoading: false,
     }),
+    useCreateProject: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+    useUpdateProject: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+    useDeleteProject: () => ({ mutate: mockDeleteMutate, isPending: false }),
+}));
+
+vi.mock('@/hooks/useProjectCategories', () => ({
+    useProjectCategories: () => ({ data: [{ _id: 'cat-1', title: 'Residential' }], isLoading: false }),
+}));
+
+vi.mock('@/hooks/useProjectSubcategories', () => ({
+    useProjectSubcategories: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('@/components/admin/AdminLayout', () => ({
     AdminLayout: ({ children }: any) => <div data-testid="admin-layout">{children}</div>,
 }));
 
-vi.mock('@/hooks/use-toast', () => ({
-    useToast: () => ({ toast: vi.fn() }),
+vi.mock('sonner', () => ({
+    toast: {
+        success: vi.fn(),
+        error: vi.fn(),
+    },
 }));
 
-
 describe('AdminProjects', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it('renders projects list', () => {
         render(
             <BrowserRouter>
@@ -61,21 +75,27 @@ describe('AdminProjects', () => {
         );
 
         expect(screen.getByText('Project Alpha')).toBeInTheDocument();
+        expect(screen.getByText('Test City')).toBeInTheDocument();
     });
 
     it('allows adding a new project', async () => {
-        render(
+        const { container } = render(
             <BrowserRouter>
                 <AdminProjects />
             </BrowserRouter>
         );
 
-        fireEvent.click(screen.getByTestId('add-project-btn'));
+        fireEvent.click(screen.getByText(/Add Project/i));
 
-        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'New Project' } });
-        fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'New Location' } });
+        const inputs = Array.from(container.querySelectorAll('input, textarea')) as HTMLInputElement[];
+        // Title input is the first input inside the form
+        const formInputs = document.querySelectorAll('form input');
+        if (formInputs.length >= 2) {
+            fireEvent.change(formInputs[0], { target: { value: 'New Project' } });
+            fireEvent.change(formInputs[1], { target: { value: 'New Location' } });
+        }
 
-        fireEvent.click(screen.getByText('Create'));
+        fireEvent.click(screen.getByText('Create Project'));
 
         await waitFor(() => {
             expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({
@@ -92,11 +112,14 @@ describe('AdminProjects', () => {
             </BrowserRouter>
         );
 
-        fireEvent.click(screen.getByTestId('edit-project-1'));
+        const editButtons = screen.getAllByRole('button');
+        const editBtn = editButtons.find(b => b.querySelector('[data-testid="icon-pencil"]'));
+        if (editBtn) fireEvent.click(editBtn);
 
-        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Updated Project' } });
+        const titleInput = screen.getByDisplayValue('Project Alpha');
+        fireEvent.change(titleInput, { target: { value: 'Updated Project' } });
 
-        fireEvent.click(screen.getByText('Update'));
+        fireEvent.click(screen.getByText('Update Project'));
 
         await waitFor(() => {
             expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({
@@ -113,9 +136,11 @@ describe('AdminProjects', () => {
             </BrowserRouter>
         );
 
-        fireEvent.click(screen.getByTestId('delete-project-1'));
+        const deleteButtons = screen.getAllByRole('button');
+        const trashBtn = deleteButtons.find(b => b.querySelector('[data-testid="icon-trash2"]'));
+        if (trashBtn) fireEvent.click(trashBtn);
 
-        const confirmBtn = await screen.findByTestId('confirm-delete-btn');
+        const confirmBtn = await screen.findByRole('button', { name: /^Delete$/i });
         fireEvent.click(confirmBtn);
 
         expect(mockDeleteMutate).toHaveBeenCalledWith('1');

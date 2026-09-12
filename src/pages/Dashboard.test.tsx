@@ -14,36 +14,17 @@ vi.mock('@/hooks/useAdmin', () => ({
     useIsAdmin: vi.fn(),
 }));
 
-// Mock child components that might cause issues or aren't the focus
-vi.mock('@/components/premium/GlassmorphismCard', () => ({
-    GlassmorphismCard: ({ children, className }: any) => <div data-testid="glass-card" className={className}>{children}</div>,
-    GradientBorderCard: ({ children, className }: any) => <div data-testid="gradient-card" className={className}>{children}</div>,
+vi.mock('@/hooks/useProjects', () => ({
+    useUserProjects: () => ({ data: [], isLoading: false }),
+    useProjects: () => ({ data: [], isLoading: false }),
 }));
 
-vi.mock('@/components/premium/ScrollReveal', () => ({
-    ScrollReveal: ({ children }: any) => <div>{children}</div>,
-    StaggerReveal: ({ children }: any) => <div>{children}</div>,
-}));
-
-vi.mock('@/components/premium/AnimatedText', () => ({
-    GradientText: ({ children }: any) => <span>{children}</span>,
-}));
-
-vi.mock('@/components/premium/ProgressRing', () => ({
-    ProgressRing: () => <div data-testid="progress-ring">Ring</div>,
-    AnimatedCounter: ({ value }: any) => <span>{value}</span>,
-}));
-
+// Mock child components
 vi.mock('@/components/premium/LuxuryLoader', () => ({
     LuxuryLoader: () => <div data-testid="luxury-loader">Loading...</div>,
+    DotsLoader: () => <div>Loading...</div>,
 }));
 
-// Mock react-helmet-async
-vi.mock('react-helmet-async', () => ({
-    Helmet: ({ children }: any) => <div data-testid="helmet">{children}</div>,
-}));
-
-// Mock Layout
 vi.mock('@/components/layout/Layout', () => ({
     Layout: ({ children }: any) => <div data-testid="layout">{children}</div>,
 }));
@@ -70,7 +51,7 @@ describe('Dashboard Component', () => {
             loading: true,
             signOut: mockSignOut,
         });
-        (AdminHook.useIsAdmin as any).mockReturnValue({ data: false });
+        (AdminHook.useIsAdmin as any).mockReturnValue({ data: false, isLoading: false });
 
         render(
             <BrowserRouter>
@@ -87,7 +68,7 @@ describe('Dashboard Component', () => {
             loading: false,
             signOut: mockSignOut,
         });
-        (AdminHook.useIsAdmin as any).mockReturnValue({ data: false });
+        (AdminHook.useIsAdmin as any).mockReturnValue({ data: false, isLoading: false });
 
         render(
             <BrowserRouter>
@@ -98,17 +79,13 @@ describe('Dashboard Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/auth');
     });
 
-    it('renders dashboard content when authenticated', () => {
+    it('redirects to admin when authenticated user is admin', () => {
         (AuthContext.useAuth as any).mockReturnValue({
-            user: {
-                id: '123',
-                email: 'test@example.com',
-                user_metadata: { full_name: 'Test User' },
-            },
+            user: { id: '123', email: 'admin@example.com' },
             loading: false,
             signOut: mockSignOut,
         });
-        (AdminHook.useIsAdmin as any).mockReturnValue({ data: false });
+        (AdminHook.useIsAdmin as any).mockReturnValue({ data: true, isLoading: false });
 
         render(
             <BrowserRouter>
@@ -116,22 +93,16 @@ describe('Dashboard Component', () => {
             </BrowserRouter>
         );
 
-        expect(screen.getByText('Test User')).toBeInTheDocument();
-        expect(screen.getByText('Welcome Back')).toBeInTheDocument();
-        expect(screen.getByTestId('layout')).toBeInTheDocument();
+        expect(mockNavigate).toHaveBeenCalledWith('/admin');
     });
 
-    it('shows admin panel button for admin users', () => {
+    it('redirects regular non-admin users to home page', () => {
         (AuthContext.useAuth as any).mockReturnValue({
-            user: {
-                id: '123',
-                email: 'admin@example.com',
-                user_metadata: { full_name: 'Admin User' },
-            },
+            user: { id: '123', email: 'user@example.com' },
             loading: false,
             signOut: mockSignOut,
         });
-        (AdminHook.useIsAdmin as any).mockReturnValue({ data: true });
+        (AdminHook.useIsAdmin as any).mockReturnValue({ data: false, isLoading: false });
 
         render(
             <BrowserRouter>
@@ -139,6 +110,6 @@ describe('Dashboard Component', () => {
             </BrowserRouter>
         );
 
-        expect(screen.getByText('Admin Panel')).toBeInTheDocument();
+        expect(mockNavigate).toHaveBeenCalledWith('/');
     });
 });

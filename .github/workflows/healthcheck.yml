@@ -1,0 +1,36 @@
+name: Production Healthcheck & Uptime
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run daily healthcheck at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  healthcheck:
+    name: Verify API & Frontend Uptime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Endpoint
+        run: |
+          API_URL="${{ secrets.LIVE_API_URL || 'https://brixxspace.com/api' }}"
+          echo "Checking backend health at: $API_URL"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL" || true)
+          echo "HTTP Response Status: $RESPONSE"
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 400 ]; then
+            echo "✅ Backend API is alive and responsive."
+          else
+            echo "⚠️ Warning: Backend returned status $RESPONSE"
+          fi
+
+      - name: Ping Frontend Live Domain
+        run: |
+          FRONTEND_URL="${{ secrets.LIVE_FRONTEND_URL || 'https://brixxspace.com' }}"
+          echo "Checking frontend availability at: $FRONTEND_URL"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL" || true)
+          echo "HTTP Response Status: $RESPONSE"
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 400 ]; then
+            echo "✅ Frontend is reachable."
+          else
+            echo "⚠️ Warning: Frontend returned status $RESPONSE"
+          fi

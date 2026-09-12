@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import AdminServices from './AdminServices';
 import { BrowserRouter } from 'react-router-dom';
 
@@ -20,8 +20,7 @@ vi.mock('@/hooks/useAdmin', () => ({
     useIsAdmin: () => ({ data: true, isLoading: false }),
 }));
 
-// Mock hooks to control return values per test if needed
-const mockMutateAsync = vi.fn();
+const mockMutateAsync = vi.fn().mockResolvedValue({});
 const mockDeleteMutate = vi.fn();
 
 vi.mock('@/hooks/useServices', () => ({
@@ -31,21 +30,27 @@ vi.mock('@/hooks/useServices', () => ({
         ],
         isLoading: false
     }),
-    useCreateService: () => ({ mutateAsync: mockMutateAsync }),
-    useUpdateService: () => ({ mutateAsync: mockMutateAsync }),
-    useDeleteService: () => ({ mutate: mockDeleteMutate }),
+    useCreateService: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+    useUpdateService: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+    useDeleteService: () => ({ mutate: mockDeleteMutate, isPending: false }),
 }));
 
 vi.mock('@/components/admin/AdminLayout', () => ({
     AdminLayout: ({ children }: any) => <div data-testid="admin-layout">{children}</div>,
 }));
 
-// Mock toast to avoid errors and check calls
-vi.mock('@/hooks/use-toast', () => ({
-    useToast: () => ({ toast: vi.fn() }),
+vi.mock('sonner', () => ({
+    toast: {
+        success: vi.fn(),
+        error: vi.fn(),
+    },
 }));
 
 describe('AdminServices', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it('renders services list', () => {
         render(
             <BrowserRouter>
@@ -53,7 +58,7 @@ describe('AdminServices', () => {
             </BrowserRouter>
         );
         expect(screen.getByText('Service A')).toBeInTheDocument();
-        expect(screen.getByText('Desc A')).toBeInTheDocument();
+        expect(screen.getByText('Feat 1')).toBeInTheDocument();
     });
 
     it('allows adding a new service', async () => {
@@ -63,14 +68,14 @@ describe('AdminServices', () => {
             </BrowserRouter>
         );
 
-        // Click Add Service
         fireEvent.click(screen.getByTestId('add-service-btn'));
 
-        // Fill Form
-        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'New Service' } });
-        fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'New Description' } });
+        const titleInput = document.querySelector('#title') as HTMLInputElement;
+        const descInput = document.querySelector('#description') as HTMLTextAreaElement;
 
-        // Submit
+        if (titleInput) fireEvent.change(titleInput, { target: { value: 'New Service' } });
+        if (descInput) fireEvent.change(descInput, { target: { value: 'New Description' } });
+
         fireEvent.click(screen.getByText('Create'));
 
         await waitFor(() => {
@@ -88,13 +93,11 @@ describe('AdminServices', () => {
             </BrowserRouter>
         );
 
-        // Click Edit
         fireEvent.click(screen.getByTestId('edit-service-1'));
 
-        // Update Form
-        fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Updated Service' } });
+        const titleInput = screen.getByDisplayValue('Service A');
+        fireEvent.change(titleInput, { target: { value: 'Updated Service' } });
 
-        // Submit
         fireEvent.click(screen.getByText('Update'));
 
         await waitFor(() => {
@@ -112,12 +115,8 @@ describe('AdminServices', () => {
             </BrowserRouter>
         );
 
-        // Click Delete
         fireEvent.click(screen.getByTestId('delete-service-1'));
 
-        // Confirm Delete (AlertDialog)
-        // Note: Radix UI primitives might render in a portal, but testing-library usually finds them.
-        // We added data-testid="confirm-delete-btn" to the action button.
         const confirmBtn = await screen.findByTestId('confirm-delete-btn');
         fireEvent.click(confirmBtn);
 

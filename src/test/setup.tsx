@@ -2,38 +2,79 @@ import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 import React from 'react';
 
-// Global Lucide React Mock
-// This proxies all icon imports to return a simple span with the icon name
-vi.mock('lucide-react', () => {
-    return new Proxy({}, {
-        get: (target, prop) => {
-            // If asking for a specific export (like 'Check', 'Plus', etc.)
-            // return a component that renders the name.
-            // Special case for ES modules 'default' or '__esModule' if necessary, 
-            // but usually for named imports this is sufficient.
-            return ({ ...props }: any) => <span data-testid={`icon-${String(prop).toLowerCase()}`} {...props}>{String(prop)}</span>;
-        }
-    });
-});
-
-// Global ResizeObserver mock
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
+// Global Helmet mock
+vi.mock('react-helmet-async', () => ({
+    Helmet: ({ children }: any) => <>{children}</>,
+    HelmetProvider: ({ children }: any) => <>{children}</>,
 }));
 
+// Global Lucide React Mock: safely wraps all icon components
+vi.mock(import('lucide-react'), async (importOriginal) => {
+    const actual = await importOriginal();
+    const mocked: Record<string, any> = {};
+    
+    Object.keys(actual).forEach((key) => {
+        if (typeof actual[key] === 'object' || typeof actual[key] === 'function') {
+            const MockIcon = React.forwardRef<HTMLSpanElement, any>((props, ref) => (
+                <span ref={ref} data-testid={`icon-${key.toLowerCase()}`} {...props}>
+                    {key}
+                </span>
+            ));
+            MockIcon.displayName = `LucideIcon(${key})`;
+            mocked[key] = MockIcon;
+        } else {
+            mocked[key] = actual[key];
+        }
+    });
+
+    return {
+        ...mocked,
+    };
+});
+
+// Global ResizeObserver mock class
+class ResizeObserverMock {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+}
+global.ResizeObserver = ResizeObserverMock as any;
+
+// Global IntersectionObserver mock
+class IntersectionObserverMock {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+    takeRecords = vi.fn(() => []);
+}
+global.IntersectionObserver = IntersectionObserverMock as any;
+
+// Global scrollTo mock
+window.scrollTo = vi.fn();
+
 // Global Framer Motion mock
+const createMotionComponent = (tag: string) => {
+    const Component = React.forwardRef(({ children, ...props }: any, ref: any) => {
+        return React.createElement(tag, { ...props, ref }, children);
+    });
+    Component.displayName = `MotionComponent(${tag})`;
+    return Component;
+};
+
+const motionProxy = new Proxy({}, {
+    get: (target, prop: string) => {
+        return createMotionComponent(prop);
+    }
+});
+
 vi.mock('framer-motion', () => ({
-    motion: {
-        div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-        span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-        section: ({ children, ...props }: any) => <section {...props}>{children}</section>,
-        h1: ({ children, ...props }: any) => <h1 {...props}>{children}</h1>,
-        h2: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
-        p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
-    },
+    motion: motionProxy,
     AnimatePresence: ({ children }: any) => <>{children}</>,
+    useScroll: () => ({ scrollY: { get: () => 0, onChange: vi.fn() }, scrollYProgress: { get: () => 0 } }),
+    useTransform: () => 0,
+    useSpring: () => 0,
+    useInView: () => true,
+    useAnimation: () => ({ start: vi.fn(), set: vi.fn() }),
 }));
 
 // Mock window.matchMedia

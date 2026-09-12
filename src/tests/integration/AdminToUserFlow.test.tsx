@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { TestimonialsSection } from '@/components/home/TestimonialsSection';
 import { useTestimonials } from '@/hooks/useTestimonials';
@@ -14,12 +14,11 @@ describe('Integration: Admin to User Data Flow', () => {
         const mockAdminAddedData = [
             {
                 id: '123',
-                client_name: 'Integration Client',
-                testimonial_text: 'This data comes from the "admin" side.',
+                name: 'Integration Client',
+                content: 'This data comes from the admin side.',
                 rating: 5,
                 featured: true,
-                company: 'Test Corp',
-                client_position: 'CEO',
+                role: 'CEO, Test Corp',
                 created_at: new Date().toISOString(),
             },
         ];
@@ -35,7 +34,7 @@ describe('Integration: Admin to User Data Flow', () => {
 
         // 4. Verify the data appears
         expect(screen.getByText('Integration Client')).toBeInTheDocument();
-        expect(screen.getByText(/"This data comes from the "admin" side."/)).toBeInTheDocument();
+        expect(screen.getByText(/"This data comes from the admin side."/)).toBeInTheDocument();
         expect(screen.getByText('CEO, Test Corp')).toBeInTheDocument();
     });
 });

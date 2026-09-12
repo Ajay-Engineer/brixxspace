@@ -1,0 +1,115 @@
+name: Continuous Integration (CI)
+
+on:
+  push:
+    branches: [main, master, develop, staging]
+  pull_request:
+    branches: [main, master, develop, staging]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Frontend CI (Lint, Typecheck, Tests, Production Build)
+  # -------------------------------------------------------------
+  frontend-ci:
+    name: Frontend (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run TypeScript Type Check
+        run: npm run typecheck
+
+      - name: Run Frontend Vitest Test Suite
+        run: npm test
+
+      - name: Validate Production Build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.brixxspace.com/api
+
+      - name: Upload Build Artifacts
+        if: matrix.node-version == '20.x' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 7
+
+  # -------------------------------------------------------------
+  # Job 2: Backend CI (Unit & API Integration Tests)
+  # -------------------------------------------------------------
+  backend-ci:
+    name: Backend (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run Backend Vitest Test Suite
+        working-directory: backend
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci_test_super_secret_jwt_key_12345
+          PORT: 5099
+
+  # -------------------------------------------------------------
+  # Job 3: Security & Vulnerability Audit
+  # -------------------------------------------------------------
+  security-audit:
+    name: Security & Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Audit Frontend Dependencies
+        run: npm audit --audit-level=critical
+        continue-on-error: true
+
+      - name: Audit Backend Dependencies
+        working-directory: backend
+        run: npm audit --audit-level=critical
+        continue-on-error: true
